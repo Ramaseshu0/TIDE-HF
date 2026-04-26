@@ -1,0 +1,31 @@
+medication_name,contraindication_for,reason
+Aliskiren,ACEi/ARB/ARNI,Increases risk of renal failure and hyperkalemia when combined with RAAS blockade
+Potassium supplements (KCl),MRA/ACEi/ARB/ARNI,Hyperkalemia risk
+Potassium-sparing diuretics (Amiloride),MRA/ACEi/ARB/ARNI,Hyperkalemia risk
+Potassium-sparing diuretics (Triamterene),MRA/ACEi/ARB/ARNI,Hyperkalemia risk
+NSAIDs (Ibuprofen),ACEi/ARB/ARNI,Renal failure risk with RAAS blockade
+NSAIDs (Naproxen),ACEi/ARB/ARNI,Renal failure risk with RAAS blockade
+NSAIDs (Ketorolac),ACEi/ARB/ARNI,Renal failure risk with RAAS blockade
+Cyclosporine,MRA,Severe hyperkalemia risk
+Tacrolimus,MRA,Severe hyperkalemia risk
+Trimethoprim-Sulfamethoxazole,MRA/ACEi/ARB/ARNI,Hyperkalemia risk
+Heparin (including LMWH),MRA/ACEi/ARB/ARNI,Hyperkalemia risk
+Drospirenone-containing OCPs,MRA/ACEi/ARB/ARNI,Hyperkalemia risk
+Lithium,ACEi/ARB/ARNI,Lithium toxicity due to reduced clearance
+Non-dihydropyridine CCBs (Verapamil),Beta-blocker,Bradycardia/AV block risk
+Non-dihydropyridine CCBs (Diltiazem),Beta-blocker,Bradycardia/AV block risk
+Class I antiarrhythmics (Flecainide),Beta-blocker,Conduction block risk
+Class I antiarrhythmics (Propafenone),Beta-blocker,Conduction block risk
+Sotalol,Beta-blocker,Additive bradycardia/AV block
+Amiodarone,Beta-blocker,Additive bradycardia/AV block
+Clonidine,Beta-blocker,Rebound hypertension + bradycardia
+MAO inhibitors (Phenelzine),Beta-blocker,Severe hypotension risk
+MAO inhibitors (Tranylcypromine),Beta-blocker,Severe hypotension risk
+Loop diuretics high dose (Furosemide >160 mg/day),SGLT2i,Volume depletion risk
+Thiazide diuretics high dose (Metolazone),SGLT2i,Volume depletion risk
+Insulin (high dose),SGLT2i,Ketoacidosis risk
+SGLT2 inhibitors (any),SGLT2i,Duplicate therapy
+ACE inhibitors (any),ARNI,Must be stopped 36 hours prior
+ARB (any),ARNI,Duplicate RAAS blockade
+MRA (Spironolactone),ACEi/ARB/ARNI,Hyperkalemia risk when combined at high doses
+MRA (Eplerenone),ACEi/ARB/ARNI,Hyperkalemia risk when combined at high doses

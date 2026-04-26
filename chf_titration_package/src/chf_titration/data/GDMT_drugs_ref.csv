@@ -1,0 +1,35 @@
+all_drugs name,GDMT_drug,Class,initial_dose,target_dose
+bisoprolol fumarate,Bisoprolol,Beta blocker,1.25 mg once daily,10 mg once daily
+CARVedilol,Carvedilol,Beta blocker,3.125 mg twice daily,25–50 mg twice daily
+NOT FOUND,Carvedilol CR,Beta blocker,10 mg once daily,80 mg once daily
+Metoprolol Succinate XL,Metoprolol succinate (CR/XL),Beta blocker,12.5–25 mg once daily,200 mg once daily
+Metoprolol XL (Toprol XL),Metoprolol succinate (CR/XL),Beta blocker,12.5–25 mg once daily,200 mg once daily
+Spironolactone,Spironolactone,MRA,12.5–25 mg once daily,25–50 mg once daily
+Eplerenone,Eplerenone,MRA,25 mg once daily,50 mg once daily
+NOT FOUND,Dapagliflozin,SGLT2i,10 mg once daily,10 mg once daily
+Jardiance,Empagliflozin,SGLT2i,10 mg once daily,10 mg once daily
+Captopril,Captopril,ACEi,6.25 mg three times daily,50 mg three times daily
+Enalapril Maleate,Enalapril,ACEi,2.5 mg twice daily,10–20 mg twice daily
+Enalaprilat,Enalapril,ACEi,2.5 mg twice daily,10–20 mg twice daily
+Fosinopril,Fosinopril,ACEi,5–10 mg once daily,40 mg once daily
+NOT FOUND,Lisinopril,ACEi,2.5–5 mg once daily,20–40 mg once daily
+NOT FOUND,Perindopril,ACEi,2 mg once daily,8–16 mg once daily
+Quinapril,Quinapril,ACEi,5 mg twice daily,20 mg twice daily
+Ramipril,Ramipril,ACEi,1.25–2.5 mg once daily,10 mg once daily
+NOT FOUND,Trandolapril,ACEi,1 mg once daily,4 mg once daily
+NOT FOUND,Candesartan,ARB,4–8 mg once daily,32 mg once daily
+Losartan Potassium,Losartan,ARB,25–50 mg once daily,50–150 mg once daily
+Valsartan,Valsartan,ARB,20–40 mg twice daily,160 mg twice daily
+Sacubitril-Valsartan (24mg-26mg),Sacubitril-valsartan,ARNi,24/26 mg twice daily,97/103 mg twice daily
+Sacubitril-Valsartan (97mg-103mg),Sacubitril-valsartan,ARNi,49/51 mg twice daily,97/103 mg twice daily
+Sacubitril-Valsartan (49mg-51mg),Sacubitril-valsartan,ARNi,49/51 mg twice daily,97/103 mg twice daily
+Bumetanide,Bumetanide,Loop diuretic,0.5–1 mg once or twice daily,10 mg daily
+Furosemide-Heart Failure,Furosemide,Loop diuretic,20–40 mg once or twice daily,600 mg daily
+Torsemide,Torsemide,Loop diuretic,10–20 mg once daily,200 mg daily
+Chlorothiazide Sodium,Chlorothiazide,Thiazide diuretic,250–500 mg once or twice daily,1000 mg daily
+Chlorothiazide,Chlorothiazide,Thiazide diuretic,250–500 mg once or twice daily,1000 mg daily
+Chlorthalidone,Chlorthalidone,Thiazide diuretic,12.5–25 mg once daily,100 mg daily
+Hydrochlorothiazide,Hydrochlorothiazide,Thiazide diuretic,25 mg once or twice daily,200 mg daily
+Triamterene-Hydrochlorothiazide,Hydrochlorothiazide,Thiazide diuretic,25 mg once or twice daily,200 mg daily
+Indapamide,Indapamide,Thiazide diuretic,2.5 mg once daily,5 mg daily
+Metolazone,Metolazone,Thiazide diuretic,2.5 mg once daily,20 mg daily

@@ -1,0 +1,41 @@
+icd_code,icd_version,contraindication_category,description
+T783,10,Angioedema,Angioneurotic edema
+T783XXA,10,Angioedema,Angioedema initial encounter
+T783XXD,10,Angioedema,Angioedema subsequent encounter
+T783XXS,10,Angioedema,Angioedema sequela
+9951,9,Angioedema,Angioneurotic edema
+O00,10,Pregnancy,Pregnancy ectopic
+O9A,10,Pregnancy,Complications of pregnancy
+Z33,10,Pregnancy,Pregnant state
+Z34,10,Pregnancy,Routine pregnancy supervision
+Z39,10,Pregnancy,Postpartum care
+V22,9,Pregnancy,Normal pregnancy
+V23,9,Pregnancy,High-risk pregnancy
+V24,9,Pregnancy,Postpartum care
+I701,10,Renal_artery_stenosis,Renal artery stenosis
+4401,9,Renal_artery_stenosis,Renal artery stenosis
+K70,10,Liver_disease,Alcoholic liver disease
+K71,10,Liver_disease,Toxic liver disease
+K72,10,Liver_disease,Acute and chronic liver failure
+K74,10,Liver_disease,Fibrosis and cirrhosis of liver
+K76,10,Liver_disease,Other liver diseases
+571,9,Liver_disease,Chronic liver disease and cirrhosis
+J45,10,Asthma,Asthma
+J46,10,Asthma,Status asthmaticus
+J9801,10,Asthma,Acute bronchospasm
+493,9,Asthma,Asthma
+I440,10,AV_block,First degree AV block
+I441,10,AV_block,Second degree AV block
+I442,10,AV_block,Complete AV block
+I495,10,AV_block,Sick sinus syndrome
+4260,9,AV_block,Atrioventricular block
+42613,9,AV_block,Complete AV block
+42781,9,AV_block,Sick sinus syndrome
+R570,10,Cardiogenic_shock,Cardiogenic shock
+78551,9,Cardiogenic_shock,Cardiogenic shock
+N184,10,Severe_CKD,CKD stage 4
+N185,10,Severe_CKD,CKD stage 5
+N186,10,Severe_CKD,End stage renal disease
+5854,9,Severe_CKD,CKD stage 4
+5855,9,Severe_CKD,CKD stage 5
+5856,9,Severe_CKD,End stage renal disease

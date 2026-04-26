@@ -1,0 +1,64 @@
+icd_code,icd_version,diagnosis_category,description
+I50,10,CHF,Heart failure
+I501,10,CHF,Left ventricular failure
+I502,10,CHF,Systolic heart failure
+I5020,10,CHF,Systolic HF unspecified
+I5021,10,CHF,Acute systolic HF
+I5022,10,CHF,Chronic systolic HF
+I5023,10,CHF,Acute on chronic systolic HF
+I503,10,CHF,Diastolic heart failure
+I504,10,CHF,Combined systolic and diastolic HF
+I5040,10,CHF,Combined HF unspecified
+I5041,10,CHF,Acute combined HF
+I5042,10,CHF,Chronic combined HF
+I5043,10,CHF,Acute on chronic combined HF
+I508,10,CHF,Other heart failure
+I509,10,CHF,Heart failure unspecified
+4280,9,CHF,Congestive heart failure unspecified
+4281,9,CHF,Left heart failure
+42820,9,CHF,Systolic HF unspecified
+42821,9,CHF,Acute systolic HF
+42822,9,CHF,Chronic systolic HF
+42823,9,CHF,Acute on chronic systolic HF
+42830,9,CHF,Diastolic HF unspecified
+42831,9,CHF,Acute diastolic HF
+42832,9,CHF,Chronic diastolic HF
+42833,9,CHF,Acute on chronic diastolic HF
+42840,9,CHF,Combined HF unspecified
+42841,9,CHF,Acute combined HF
+42842,9,CHF,Chronic combined HF
+42843,9,CHF,Acute on chronic combined HF
+E875,10,Hyperkalemia,Hyperkalemia
+2767,9,Hyperkalemia,Hyperpotassemia
+N17,10,Renal_insufficiency,Acute kidney failure
+N18,10,Renal_insufficiency,Chronic kidney disease
+N19,10,Renal_insufficiency,Renal failure unspecified
+584,9,Renal_insufficiency,Acute renal failure
+585,9,Renal_insufficiency,Chronic kidney disease
+586,9,Renal_insufficiency,Renal failure unspecified
+I95,10,Hypotension,Hypotension
+I950,10,Hypotension,Idiopathic hypotension
+I951,10,Hypotension,Orthostatic hypotension
+I952,10,Hypotension,Drug-induced hypotension
+4580,9,Hypotension,Orthostatic hypotension
+4589,9,Hypotension,Hypotension unspecified
+R001,10,Bradycardia,Bradycardia unspecified
+42789,9,Bradycardia,Other cardiac dysrhythmias
+E101,10,Ketoacidosis,Type 1 diabetes with ketoacidosis
+E111,10,Ketoacidosis,Type 2 diabetes with ketoacidosis
+E131,10,Ketoacidosis,Other diabetes with ketoacidosis
+24910,9,Ketoacidosis,Secondary diabetes with ketoacidosis
+25010,9,Ketoacidosis,Diabetes with ketoacidosis
+R60,10,Edema,Edema
+J81,10,Edema,Pulmonary edema
+7823,9,Edema,Edema
+E871,10,Hyponatremia,Hyponatremia
+2761,9,Hyponatremia,Hyposmolality and hyponatremia
+E870,10,Hypernatremia,Hypernatremia
+2760,9,Hypernatremia,Hypernatremia
+E872,10,Acidosis,Acidosis
+2762,9,Acidosis,Acidosis
+J810,10,Pulmonary_edema,Acute pulmonary edema
+R0600,10,Dyspnea,Dyspnea unspecified
+R0601,10,Dyspnea,Orthopnea
+R0602,10,Dyspnea,Shortness of breath
