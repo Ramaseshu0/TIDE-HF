@@ -100,3 +100,4 @@ Thumbs.db
 # 9.  Claude Code session state
 # ------------------------------------------------------------------ #
 .claude/settings.local.json
+data/*.parquet
