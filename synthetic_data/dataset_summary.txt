@@ -1,0 +1,40 @@
+CHF Weekly Synthetic Dataset (cleaned)
+==================================================
+rows: 137,712
+columns: 143
+polish_runtime_seconds: 2.5
+
+remaining nulls (clinically valid -- p_axis is undefined for AF/flutter/paced/junctional/VT):
+  (none)
+
+label prevalence:
+  severe_hypotension_detected: 0.0499  (6,873)
+  severe_bradycardia_detected: 0.0300  (4,135)
+  any_emergency_flag: 0.1519  (20,924)
+  hypotension_detected: 0.2202  (30,323)
+  bradycardia_detected: 0.1455  (20,039)
+  volume_depletion_detected: 0.1297  (17,867)
+  worsening_HF_detected: 0.1495  (20,583)
+  hyperkalemia_detected: 0.0991  (13,647)
+  renal_dysfunction_detected: 0.1408  (19,396)
+  hyponatremia_detected: 0.0798  (10,983)
+  metabolic_acidosis_detected: 0.0596  (8,207)
+
+medication usage:
+  on_ACEi: 0.2310  (31,805)
+  on_ARB: 0.0987  (13,588)
+  on_ARNi: 0.0090  (1,243)
+  on_beta_blocker: 0.5024  (69,181)
+  on_MRA: 0.0919  (12,651)
+  on_SGLT2i: 0.0027  (373)
+  on_loop: 0.4808  (66,209)
+  on_NSAID: 0.0834  (11,486)
+  on_potassium_supplement: 0.5010  (69,000)
+  on_other_diuretic: 0.0838  (11,541)
+
+lab summary (mean ± sd  [min..max]):
+     potassium:   4.37 ±  0.64  [2.50..7.09]
+        sodium: 138.36 ±  3.28  [122.80..149.70]
+    creatinine:   1.16 ±  0.47  [0.30..3.78]
+          egfr: 107.08 ± 20.60  [5.00..120.00]
+   bicarbonate:  24.59 ±  2.58  [12.50..33.20]

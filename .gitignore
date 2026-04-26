@@ -1,0 +1,102 @@
+# =====================================================================
+# CHF GDMT Titration — repository .gitignore
+# =====================================================================
+# Goals:
+#   - Never commit MIMIC-IV raw data (PhysioNet credentialed access only)
+#   - Never commit large generated datasets, model artefacts, or venvs
+#   - Keep the repo lean enough to clone quickly
+# =====================================================================
+
+# ------------------------------------------------------------------ #
+# 1.  PHI / restricted data — MUST NOT be committed
+# ------------------------------------------------------------------ #
+MIMIC-IV_Original_Data_Set/
+mimic-iv*/
+mimiciv*/
+**/hosp/
+**/icu/
+**/ecg/
+*.csv.gz
+
+# ------------------------------------------------------------------ #
+# 2.  Large generated / derived data
+# ------------------------------------------------------------------ #
+synthetic_data/*.csv
+synthetic_data/*.log
+chf_titration_package/data/*.parquet
+chf_titration_package/models/*.pkl
+
+# Allow small reference CSVs that ship with the package
+!chf_titration_package/src/chf_titration/data/*.csv
+
+# ------------------------------------------------------------------ #
+# 3.  Python
+# ------------------------------------------------------------------ #
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+*.egg
+build/
+dist/
+develop-eggs/
+downloads/
+eggs/
+.eggs/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+MANIFEST
+
+# ------------------------------------------------------------------ #
+# 4.  Virtual environments
+# ------------------------------------------------------------------ #
+.venv/
+venv/
+env/
+ENV/
+.python-version
+
+# ------------------------------------------------------------------ #
+# 5.  Notebooks
+# ------------------------------------------------------------------ #
+.ipynb_checkpoints/
+*-checkpoint.ipynb
+
+# ------------------------------------------------------------------ #
+# 6.  Test / lint / type cache
+# ------------------------------------------------------------------ #
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+
+# ------------------------------------------------------------------ #
+# 7.  Editor / OS noise
+# ------------------------------------------------------------------ #
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# ------------------------------------------------------------------ #
+# 8.  Streamlit / Jupyter runtime
+# ------------------------------------------------------------------ #
+.streamlit/secrets.toml
+
+# ------------------------------------------------------------------ #
+# 9.  Claude Code session state
+# ------------------------------------------------------------------ #
+.claude/settings.local.json
