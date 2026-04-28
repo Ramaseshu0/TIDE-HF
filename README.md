@@ -1,240 +1,224 @@
-# CHF GDMT Titration Pipeline
+# TIDE-HF
 
-[![Python](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/)
-[![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
-[![Status](https://img.shields.io/badge/status-research%20prototype-orange.svg)](#disclaimer)
+Local pipeline for a CHF GDMT titration system: synthetic-data generator → LightGBM adverse-effect classifier → rule-based titration engine with lab gating → strategy applier → Streamlit UI.
 
-A research pipeline that recommends **weekly guideline-directed medical therapy (GDMT) titration decisions** for patients with **congestive heart failure (CHF)**. It combines a synthetic-data generator (anchored on MIMIC-IV distributions), a LightGBM classifier for adverse-effect detection, a deterministic titration engine over five drug classes, and a Streamlit clinician UI.
+No MIMIC dataset required. Everything runs locally.
 
-> ⚠️ **Research prototype only.** Not a medical device. Do not use for real clinical decisions. See [Disclaimer](#disclaimer).
-
----
-
-## Table of contents
-- [Overview](#overview)
-- [Repository layout](#repository-layout)
-- [Quick start](#quick-start)
-- [Pipeline](#pipeline)
-- [Data sources](#data-sources)
-- [Drug classes covered](#drug-classes-covered)
-- [Adverse-effect flags](#adverse-effect-flags)
-- [Development](#development)
-- [Disclaimer](#disclaimer)
-- [Citation](#citation)
-
----
-
-## Overview
-
-The pipeline executes four stages:
-
-1. **Synthetic data generation** — produces realistic patient-week records (vitals × 14 timepoints, ECG, labs, GDMT meds, contraindications, ground-truth adverse-effect labels). Two modes: `distribution` (statistical priors) and `mimic` (anchored on MIMIC-IV).
-2. **Adverse-effect classifier** — multi-output LightGBM model predicting 11 immediate / suspected / emergency flags from vitals + medication state.
-3. **Titration logic engine** — deterministic, contraindication-aware decision tree over RAAS / β-blocker / MRA / SGLT2i / loop diuretic, emitting `increase / decrease / maintain / stop / start / hold + order_labs` per class.
-4. **Clinician UI** — Streamlit app for reviewing the recommendation, exploring patient-week traces, and sweeping titration strategies.
-
----
-
-## Repository layout
-
-```
-CHF/
-├── README.md                       # this file
-├── LICENSE                         # MIT + clinical disclaimer
-├── CITATION.cff                    # academic citation metadata
-├── .gitignore                      # excludes MIMIC raw, large parquets, venvs
-│
-├── chf_titration_package/          # the installable Python package
-│   ├── pyproject.toml              # package metadata + console scripts
-│   ├── requirements.txt
-│   ├── README.md
-│   ├── src/chf_titration/          # library code
-│   │   ├── synthesize.py           # weekly synthetic data
-│   │   ├── data_gen.py             # batch synth + MIMIC-anchored mode
-│   │   ├── featurize.py            # vitals → feature row
-│   │   ├── classifier.py           # LightGBM 11-flag classifier
-│   │   ├── engine.py               # titration logic engine
-│   │   ├── strategy.py             # traditional / strong_hf / rapid_sequence / sglt_mra_first
-│   │   ├── ui.py                   # Streamlit app
-│   │   ├── cli.py                  # console-script entry points
-│   │   ├── constants.py            # drug classes, target doses, label cols
-│   │   └── data/                   # small reference CSVs (GDMT, ICDs, labs)
-│   ├── scripts/                    # thin CLI wrappers
-│   │   ├── prepare.py              # one-shot setup (gen + train)
-│   │   ├── generate_data.py
-│   │   ├── train.py
-│   │   └── run_ui.py
-│   └── tests/test_smoke.py
-│
-├── synthetic_data/                 # standalone weekly-CSV generator (older)
-│   ├── generate_synthetic.py
-│   ├── polish_synthetic.py
-│   └── dataset_summary.txt         # produced datasets are .gitignored
-│
-├── sample_synthetic_data/          # small XLSX samples for inspection
-│   └── *.xlsx
-│
-├── er_diagram/                     # ER & flow diagrams
-│   └── *.png
-│
-└── Other Info/                     # process notes, reference codes, PDF
-    ├── overall_process.txt
-    ├── synthetic_data_scheme.txt
-    ├── Final.pdf
-    ├── ecg_study_ids.csv
-    └── patient_visit_codes.csv
-```
-
-> **Excluded from git** (see `.gitignore`):
-> - `MIMIC-IV_Original_Data_Set/` — PhysioNet credentialed access only (~91 GB)
-> - `synthetic_data/*.csv` — bulk generated CSVs (100s of MB)
-> - `chf_titration_package/data/*.parquet` — generated datasets
-> - `chf_titration_package/models/*.pkl` — trained model artefacts
-> - `.venv/`, `__pycache__/`, `*.egg-info/`, `.pytest_cache/`, `.DS_Store`
-
----
-
-## Quick start
+## Setup (Python 3.10+)
 
 ```bash
-# 1. clone
-git clone https://github.com/<your-username>/chf-gdmt-titration.git
-cd chf-gdmt-titration/chf_titration_package
+git clone <this-repo>
+cd TIDE-HF
 
-# 2. install (editable, with UI extras)
-python3.10 -m venv .venv
-source .venv/bin/activate
+python -m venv .venv
+source .venv/bin/activate        # Windows: .venv\Scripts\activate
+
+pip install -U pip
 pip install -e ".[ui]"
-
-# 3. one-shot prep — generates synthetic weeks + trains the classifier
-chf-prepare                       # ~1–2 min on a laptop
-
-# 4. launch the Streamlit UI
-chf-ui                            # http://localhost:8501
 ```
 
-Console scripts installed by the package:
+The `[ui]` extra pulls in Streamlit. If you only need the library + training, `pip install -e .` is enough.
 
-| Command            | Purpose                                                  |
-|--------------------|----------------------------------------------------------|
-| `chf-generate-data`| Produce N synthetic patient-weeks (parquet)              |
-| `chf-train`        | Train the 11-flag LightGBM classifier                    |
-| `chf-prepare`      | Generate + train (idempotent, used for first-run setup)  |
-| `chf-ui`           | Launch the Streamlit clinician UI                        |
-
----
-
-## Pipeline
-
-```
-                  ┌──────────────────────────────┐
-MIMIC-IV  ─────►  │ 1. Synthetic-data generator  │ ─►  patient-week parquet
-priors            └──────────────────────────────┘     (vitals×14 + ECG + labs +
-                                                        meds + contraind + GT flags)
-                                                                │
-                                                                ▼
-                  ┌──────────────────────────────┐
-                  │ 2. LightGBM classifier (11)  │ ─►  adverse-effect flags
-                  └──────────────────────────────┘     (immediate / suspected / emergency)
-                                                                │
-                                                                ▼
-                  ┌──────────────────────────────┐
-                  │ 3. Titration logic engine    │ ─►  per-class decision +
-                  │    + strategy layer          │     order_labs recommendation
-                  └──────────────────────────────┘
-                                                                │
-                                                                ▼
-                  ┌──────────────────────────────┐
-                  │ 4. Streamlit clinician UI    │
-                  └──────────────────────────────┘
-```
-
-Detailed flow (including AE resolver, RAAS preference order, and per-class lab gates) is documented in [`Other Info/synthetic_data_scheme.txt`](Other%20Info/synthetic_data_scheme.txt) and visually in [`er_diagram/`](er_diagram/).
-
----
-
-## Data sources
-
-| Source                | Where                                        | Notes                                       |
-|-----------------------|----------------------------------------------|---------------------------------------------|
-| MIMIC-IV (raw)        | https://physionet.org/content/mimiciv/       | **Not in repo.** Credentialed access only.  |
-| MIMIC-IV-derived      | `chf_titration_package/data/*.parquet`       | Generated locally; gitignored.              |
-| GDMT / ICD reference  | `chf_titration_package/src/chf_titration/data/*.csv` | Small, shipped with the package.    |
-| Synthetic samples     | `sample_synthetic_data/*.xlsx`               | Inspection-only XLSX previews.              |
-
-To reproduce MIMIC-anchored mode: place the MIMIC-IV-derived CHF cohort parquet at `chf_titration_package/data/synthetic_CHF_visits_v2.parquet`, then run `chf-prepare --mode mimic`.
-
----
-
-## Drug classes covered
-
-The titration engine reasons over the five guideline pillars of HFrEF therapy:
-
-| Class            | Representative drugs              |
-|------------------|-----------------------------------|
-| RAAS inhibitor   | ARNi → ACEi → ARB (preference order) |
-| β-blocker        | carvedilol, metoprolol succ., bisoprolol |
-| MRA              | spironolactone, eplerenone        |
-| SGLT2 inhibitor  | dapagliflozin, empagliflozin      |
-| Loop diuretic    | furosemide, torsemide, bumetanide |
-
-Strategies available at the strategy layer: `traditional`, `strong_hf`, `rapid_sequence`, `sglt_mra_first`.
-
----
-
-## Adverse-effect flags
-
-The classifier predicts 11 boolean flags consumed by the engine:
-
-```
-severe_hypotension_detected      hypotension_detected
-severe_bradycardia_detected      bradycardia_detected
-any_emergency_flag               volume_depletion_detected
-                                 worsening_HF_detected
-                                 hyperkalemia_detected
-                                 renal_dysfunction_detected
-                                 hyponatremia_detected
-                                 metabolic_acidosis_detected
-```
-
-Class prevalence in the reference 137,712-row synthetic dataset is reported in [`synthetic_data/dataset_summary.txt`](synthetic_data/dataset_summary.txt).
-
----
-
-## Development
+## One-step run
 
 ```bash
-cd chf_titration_package
-pip install -e ".[dev]"
-
-pytest -v               # smoke tests
-ruff check src/         # lint
+# Launch the Streamlit UI locally on http://localhost:8501.
+# On first launch, auto-generates 10,000 synthetic patient-weeks and trains the
+# 11-flag LightGBM classifier (≈2 min on a modern laptop). Subsequent launches
+# skip setup and load the cached bundle from models/chf_classifier_lgbm.pkl.
+python scripts/run_ui.py
 ```
 
-Smoke tests live in `chf_titration_package/tests/test_smoke.py` and verify that:
-- the synthetic generator produces 14 timepoints per patient-week,
-- the engine + strategy run end-to-end without the classifier,
-- a confirmed K=6.3 triggers the global-stop branch.
+If a trained bundle is already committed with the repo (see the section on distributing the bundle below), the first launch skips training too.
 
----
+To prepare the bundle ahead of time without launching the UI:
 
-## Disclaimer
-
-This software is a **research prototype**. It is **not a medical device**, has not been validated in clinical settings, and **must not be used for real patient care**. All recommendations produced by the titration engine are for research, education, and clinician review only. The authors accept no liability for any clinical use.
-
-MIMIC-IV is provided by the MIT Laboratory for Computational Physiology under a credentialed-access PhysioNet license. No PHI is present in this repository.
-
----
-
-## Citation
-
-If you use this work, please cite via the included [`CITATION.cff`](CITATION.cff), or:
-
-```
-Ramaseshu (2026). CHF GDMT Titration Pipeline (v0.1.0).
-https://github.com/<your-username>/chf-gdmt-titration
+```bash
+python scripts/prepare.py                  # 10,000 weeks, mimic mode if seed parquet present
+python scripts/prepare.py --n 5000         # faster setup
+python scripts/prepare.py --force          # regenerate + retrain from scratch
 ```
 
-And cite MIMIC-IV:
+### Retraining or training with different settings
 
-> Johnson, A., Bulgarelli, L., Pollard, T., et al. *MIMIC-IV* (version 3.x). PhysioNet. https://doi.org/10.13026/6mm1-ek67
+If you want to tweak the training set size, seed, or LightGBM hyperparameters, you can still run the two steps separately:
+
+```bash
+python scripts/generate_data.py --n 20000 --out data/synthetic_patient_weeks.parquet
+python scripts/train.py --data data/synthetic_patient_weeks.parquet --out models/chf_classifier_lgbm.pkl --n-estimators 800
+```
+
+The UI hard-fails with a clear error if it can't find a trained bundle — there is no pseudo-classifier fallback.
+
+## Two data-generation modes
+
+The included `data/synthetic_CHF_visits_v2.parquet` (135 MB) is a pre-built snapshot of 137k MIMIC-IV CHF visits with real demographics, baseline labs, GDMT regimens, and ECG-study linkage. The generator uses it by default.
+
+```bash
+# MIMIC-seeded (default when the parquet is present): real demographics +
+# baseline labs + per-class dose patterns come from sampled MIMIC visits.
+python scripts/generate_data.py --n 10000 --mode mimic
+
+# Pure distribution: Gaussian-sampled demographics and baselines. Runs with
+# zero external data. Auto-selected if the MIMIC parquet is missing.
+python scripts/generate_data.py --n 10000 --mode distribution
+
+# Auto (default): "mimic" if data/synthetic_CHF_visits_v2.parquet exists, else "distribution".
+python scripts/generate_data.py --n 10000 --mode auto
+```
+
+**What the modes do differently**
+
+| aspect | `distribution` | `mimic` |
+|---|---|---|
+| demographics (age, gender) | Gaussian / uniform | sampled from real CHF visits |
+| baseline labs (K, Na, Cr, eGFR) | independent Gaussians | extracted from real lab events |
+| GDMT med state | random assignment, 35%/class | copied from real MIMIC prescriptions |
+| vital trajectories + labels | synthesized from sampled labels | same |
+| external data needed | none | data/synthetic_CHF_visits_v2.parquet |
+
+Use `mimic` when you want realistic comorbidity correlations in your training set. Use `distribution` when portability matters more than realism or when the seed parquet isn't available.
+
+## What's in the package
+
+```
+TIDE-HF/
+├── src/chf_titration/
+│   ├── constants.py       # class maps, rhythms, drug reps
+│   ├── featurize.py       # featurize_week: 14 timepoints → 108 features
+│   ├── synthesize.py      # synthesize_week + preset patients
+│   ├── engine.py          # TitrationEngine v1.2 (lab-gated) + contraindications
+│   ├── strategy.py        # apply_strategy: traditional / strong_hf / rapid_sequence / sglt_mra_first
+│   ├── classifier.py      # train_classifier, load_bundle, predict_flags
+│   ├── data_gen.py        # full synthetic-week batch generator
+│   ├── ui.py              # Streamlit app
+│   └── data/              # reference CSVs (GDMT, ICDs, lab maps)
+├── scripts/
+│   ├── generate_data.py
+│   ├── train.py
+│   ├── prepare.py         # one-shot: generate + train (idempotent)
+│   ├── run_ui.py          # auto-prepares the bundle on first launch
+│   └── run_mcp.py         # MCP server entrypoint
+├── data/                  # synthetic_CHF_visits_v2.parquet, synthetic_patient_weeks.parquet
+├── models/                # trained bundles land here (chf_classifier_lgbm.pkl)
+├── synthetic_data/        # standalone synthetic CSV generators
+├── tests/
+├── website/               # Next.js marketing site (separate package)
+├── pyproject.toml
+├── requirements.txt
+└── README.md
+```
+
+## Preset scenarios in the UI
+
+Seventeen presets cover the main decision paths. Each one is named after the pattern it showcases.
+
+**Titration-state showcases**
+
+| preset | what it demonstrates |
+|---|---|
+| `Newly diagnosed, stable` | Fresh patient. Engine recommends starting the preferred RAAS (ARNi) + other pillars per strategy. |
+| `Partial titration, no AEs` | On ACEi 10/40, BB 12.5/50, loop. Shows `increase_dose` (below target) + `start_medication` (MRA, SGLT2i). |
+| `Fully titrated, at target` | Quadruple therapy at target doses. Every class should `maintain_dose` with reason `at_or_above_target`. |
+
+**Adverse-effect showcases**
+
+| preset | what it demonstrates |
+|---|---|
+| `Suspected hyperkalemia` | ECG signs (T-peaked, wide QRS) but no labs → classifier fires `hyperkalemia_detected` → engine holds RAAS + MRA + BB, sets `order_labs`. |
+| `Suspected renal dysfunction` | Weight drift + rising SBP but no labs → engine holds + requests labs for same classes. |
+| `Confirmed hyperkalemia (K=6.3)` | Labs show K > 6.0 → `global_stop` triggers, all meds held, escalate. |
+| `Volume depletion + hypotension` | AE resolver path: stop SGLT2i + decrease loop (volume on both). |
+| `Worsening HF` | Weight gain + SpO2 drop → BB and loop get `immediate_ae`; RAAS/MRA still titrate. |
+| `Bradycardia on beta blocker` | HR < 45 → AE resolver specifically down-titrates beta blocker first. |
+| `Worsening HF + hyperkalemia (labs confirmed)` | Double-bind: MRA decreased (hyperK on MRA) AND loop increased (vol overload + hyperK). |
+| `Hyponatremia + renal dysfunction (labs)` | Na < 130 + Cr Δ > 30% → `lab_ae` on loop (Na) + RAAS/MRA (Cr). Global stop via Cr Δ. |
+
+**Contraindication showcases**
+
+| preset | what it demonstrates |
+|---|---|
+| `Angioedema history (ARNi + ACEi blocked)` | Preferred RAAS falls to ARB. MRA + SGLT2i still start. |
+| `Severe asthma (beta blocker blocked)` | BB contraindicated. RAAS + MRA + SGLT2i + loop all titrate normally. |
+| `CKD stage 4 (eGFR=22)` | eGFR < 30 auto-derives the MRA contraindication from baseline. SGLT2i still allowed (> 20). |
+| `Pregnant (RAAS blocked)` | All three RAAS agents blocked (preferred_raas = None). SGLT2i also contraindicated in pregnancy. |
+| `AV block (beta blocker blocked)` | BB held. RAAS + MRA + loop continue. |
+| `Severe hypotension (global stop)` | Classifier-triggered global_stop from severe hypotension flag (SBP < 80). |
+
+Every preset carries a `note` field in `PATIENTS[...]` summarising the expected decision path — useful when reviewing the UI output.
+
+## Using the library in your own code
+
+```python
+from chf_titration.synthesize import synthesize_week, PATIENTS
+from chf_titration.classifier import load_bundle, predict_flags
+from chf_titration.engine import TitrationEngine
+from chf_titration.strategy import apply_strategy
+
+bundle = load_bundle("models/chf_classifier_lgbm.pkl")
+engine = TitrationEngine()
+
+patient = PATIENTS["Newly diagnosed, stable"]
+tps = synthesize_week(patient)
+
+flags, probs = predict_flags(patient, tps, bundle)
+result = engine.evaluate(patient, tps, flags, labs=None, awaiting_labs=set())
+changes = apply_strategy(result, patient, "strong_hf")
+
+for cls, change in changes.items():
+    print(f"{cls:<14} {change['concrete_action']}  {change['current']} → {change['new_dose']} mg")
+```
+
+## The four titration strategies
+
+| name | behavior |
+|---|---|
+| `traditional` | One new class started per week, RAAS→beta-blocker→MRA→SGLT2i→loop, single-rung titration |
+| `strong_hf` | All eligible classes started at once, double-rung up-titration |
+| `rapid_sequence` | All eligible classes started at once, single-rung steps (Greene 2021) |
+| `sglt_mra_first` | Phase 1 starts SGLT2i + MRA; phase 2 then adds ARNi + beta-blocker |
+
+## Running the UI alone
+
+```bash
+streamlit run src/chf_titration/ui.py
+```
+
+or
+
+```bash
+python scripts/run_ui.py
+```
+
+Opens at http://localhost:8501. Pick a preset, toggle between summary-stats input or per-timepoint CSV editing, pick a strategy, click Compute. No internet or tunnel required.
+
+## Marketing site (`website/`)
+
+The Next.js landing page lives in `website/` and is independent of the Python package.
+
+```bash
+cd website
+npm install
+npm run dev          # http://localhost:8901
+```
+
+## Distributing the 135 MB MIMIC parquet and the trained bundle
+
+Because `data/synthetic_CHF_visits_v2.parquet` is 135 MB, plain git will complain. Two clean options:
+
+- **git-lfs** — `git lfs install && git lfs track "*.parquet" "*.pkl" && git add .gitattributes data/synthetic_CHF_visits_v2.parquet models/chf_classifier_lgbm.pkl` then commit normally.
+- **Side-channel** — keep the parquet and/or pickle out of git (restore them to `.gitignore`) and ship them alongside the repo via a download link or direct copy. The package auto-detects the parquet's presence and falls back to `distribution` mode if absent. If the pickle is absent, `scripts/run_ui.py` will train one on first launch.
+
+`.gitignore` already has an un-ignore rule for `models/chf_classifier_lgbm.pkl`, so once you've generated the bundle locally you can commit it directly:
+
+```bash
+python scripts/prepare.py
+git add models/chf_classifier_lgbm.pkl
+git commit -m "ship pretrained LightGBM bundle"
+```
+
+The trained pickle is ~5-15 MB depending on n_estimators and dataset size — small enough to commit without LFS in most cases.
+
+## License
+
+MIT
