@@ -192,15 +192,25 @@ python scripts/run_ui.py
 
 Opens at http://localhost:8501. Pick a preset, toggle between summary-stats input or per-timepoint CSV editing, pick a strategy, click Compute. No internet or tunnel required.
 
-## Marketing site (`website/`)
+## Marketing site + Engine UI (`website/`)
 
-The Next.js landing page lives in `website/` and is independent of the Python package.
+The Vite + React + shadcn-ui app under `website/` hosts the landing page (`/`) and the live Engine console (`/engine`) where every patient field — vitals, baseline labs, recent labs, meds, contraindications — is editable. Compute calls the Python `TitrationEngine` over a local FastAPI bridge, so what you see is the real engine output, not a browser mock.
+
+Two processes:
 
 ```bash
+# Terminal 1 — Python API (LightGBM classifier + engine + strategy)
+python scripts/run_api.py            # http://127.0.0.1:8000
+
+# Terminal 2 — website
 cd website
 npm install
-npm run dev          # http://localhost:8901
+npm run dev                          # http://localhost:8901
 ```
+
+Open http://localhost:8901/engine, pick a preset, edit anything, click **Compute**.
+
+Other scripts: `npm run build` (production bundle), `npm run preview` (serve the build), `npm test` (vitest). Override the API URL with `VITE_TIDE_API=…` at build/dev time.
 
 ## Distributing the 135 MB MIMIC parquet and the trained bundle
 
