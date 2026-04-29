@@ -194,12 +194,19 @@ Opens at http://localhost:8501. Pick a preset, toggle between summary-stats inpu
 
 ## Marketing site + Engine UI (`website/`)
 
-The Vite + React + shadcn-ui app under `website/` hosts the landing page (`/`) and the live Engine console (`/engine`) where every patient field — vitals, baseline labs, recent labs, meds, contraindications — is editable. Compute calls the Python `TitrationEngine` over a local FastAPI bridge, so what you see is the real engine output, not a browser mock.
+The Vite + React + shadcn-ui app under `website/` hosts the landing page (`#/`) and the live Engine console (`#/engine`) where every patient field — vitals, baseline labs, recent labs, meds, contraindications — is editable.
 
-Two processes:
+The Engine page runs in **two modes**:
+
+- **Python engine** — when the local FastAPI backend (`scripts/run_api.py`) is reachable at `http://127.0.0.1:8000`. Calls into `TitrationEngine` + the LightGBM classifier so you see real engine output.
+- **Browser engine** — fallback that runs the rule logic entirely in the browser. This is what GitHub Pages serves; no backend required.
+
+The header pill in the Engine console shows which mode is live.
+
+### Local development
 
 ```bash
-# Terminal 1 — Python API (LightGBM classifier + engine + strategy)
+# Terminal 1 (optional) — Python API for the real engine
 python scripts/run_api.py            # http://127.0.0.1:8000
 
 # Terminal 2 — website
@@ -208,9 +215,23 @@ npm install
 npm run dev                          # http://localhost:8901
 ```
 
-Open http://localhost:8901/engine, pick a preset, edit anything, click **Compute**.
+Open http://localhost:8901/#/engine, pick a preset, edit anything, click **Compute**.
 
-Other scripts: `npm run build` (production bundle), `npm run preview` (serve the build), `npm test` (vitest). Override the API URL with `VITE_TIDE_API=…` at build/dev time.
+Override the API URL with `VITE_TIDE_API=…` at build/dev time. Other scripts: `npm run build`, `npm run preview`, `npm test`.
+
+### Deploy to GitHub Pages
+
+The repo ships [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml). On every push to `main` that touches `website/`, the workflow builds and publishes to GitHub Pages.
+
+One-time repo setup:
+
+1. Push the repo to `https://github.com/Ramaseshu0/TIDE-HF`.
+2. Repo → **Settings → Pages → Build and deployment → Source: GitHub Actions**.
+3. (First push will trigger the workflow; subsequent ones auto-deploy.)
+
+The site will be live at **https://ramaseshu0.github.io/TIDE-HF/** — landing at `#/`, Engine at `#/engine`. Hash-based routing means deep links (and refresh) work without a server-side SPA fallback.
+
+GitHub Pages can't run Python, so the deployed Engine page automatically uses the in-browser engine. To run the real Python engine in production, host `scripts/run_api.py` somewhere reachable and rebuild with `VITE_TIDE_API=https://your-api.example.com npm run build`.
 
 ## Distributing the 135 MB MIMIC parquet and the trained bundle
 

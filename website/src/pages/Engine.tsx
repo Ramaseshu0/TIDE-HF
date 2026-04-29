@@ -49,10 +49,10 @@ const Engine = () => {
   const [result, setResult] = useState<EvaluateResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [apiOk, setApiOk] = useState<boolean | null>(null);
+  const [engineSource, setEngineSource] = useState<"python" | "browser" | null>(null);
 
   useEffect(() => {
-    apiHealth().then((h) => setApiOk(h.ok && h.bundle_loaded)).catch(() => setApiOk(false));
+    apiHealth().then((h) => setEngineSource(h.source)).catch(() => setEngineSource("browser"));
   }, []);
 
   const grouped = useMemo(() => {
@@ -113,11 +113,11 @@ const Engine = () => {
           </Link>
           <div className="flex items-center gap-3">
             <span className={`text-[10px] font-mono uppercase tracking-widest px-2 py-1 rounded border ${
-              apiOk === null ? "border-border text-muted-foreground" :
-              apiOk ? "border-emerald-400/40 text-emerald-300 bg-emerald-400/5"
-                    : "border-rose-400/40 text-rose-300 bg-rose-400/5"
+              engineSource === null ? "border-border text-muted-foreground" :
+              engineSource === "python" ? "border-emerald-400/40 text-emerald-300 bg-emerald-400/5"
+                                       : "border-cyan-400/40 text-cyan-300 bg-cyan-400/5"
             }`}>
-              {apiOk === null ? "checking…" : apiOk ? "API live" : "API offline"}
+              {engineSource === null ? "checking…" : engineSource === "python" ? "Python engine" : "Browser engine"}
             </span>
             <div className="w-8 h-8 rounded-lg bg-gradient-primary grid place-items-center shadow-glow-soft">
               <Activity className="w-4 h-4 text-primary-foreground" strokeWidth={2.5} />
@@ -183,7 +183,7 @@ const Engine = () => {
               </div>
               <button
                 onClick={compute}
-                disabled={loading || apiOk === false}
+                disabled={loading}
                 className="inline-flex items-center gap-2 rounded-xl bg-gradient-primary px-5 py-3 text-sm font-medium text-primary-foreground shadow-elegant hover:shadow-glow transition-all disabled:opacity-60 disabled:cursor-not-allowed"
               >
                 {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
@@ -455,7 +455,9 @@ const Engine = () => {
               </div>
 
               <p className="text-center text-xs text-muted-foreground font-mono">
-                Driven by Python TIDE-HF engine via local API · clinical decision support only.
+                {result.source === "python"
+                  ? "Driven by Python TIDE-HF engine via local API · clinical decision support only."
+                  : "Driven by in-browser engine (no Python backend running) · clinical decision support only."}
               </p>
             </div>
           ) : (
