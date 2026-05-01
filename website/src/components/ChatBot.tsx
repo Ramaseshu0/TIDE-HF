@@ -67,10 +67,16 @@ const ChatBot = () => {
   ]);
   const [input, setInput] = useState("");
   const [thinking, setThinking] = useState(false);
-  const endRef = useRef<HTMLDivElement>(null);
+  const scrollerRef = useRef<HTMLDivElement>(null);
+  const firstRenderRef = useRef(true);
 
   useEffect(() => {
-    endRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+    if (firstRenderRef.current) {
+      firstRenderRef.current = false;
+      return;
+    }
+    const el = scrollerRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
   }, [messages, thinking]);
 
   const send = (text: string) => {
@@ -125,7 +131,7 @@ const ChatBot = () => {
           </div>
 
           {/* Messages */}
-          <div className="h-[520px] overflow-y-auto px-5 py-6 space-y-5 bg-background/50">
+          <div ref={scrollerRef} className="h-[520px] overflow-y-auto px-5 py-6 space-y-5 bg-background/50">
             {messages.map((m) => (
               <div
                 key={m.id}
@@ -168,7 +174,6 @@ const ChatBot = () => {
                 </div>
               </div>
             )}
-            <div ref={endRef} />
           </div>
 
           {/* Starters */}
