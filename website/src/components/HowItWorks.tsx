@@ -80,7 +80,7 @@ const HowItWorks = () => {
         </div>
 
         {/* Strategies */}
-        <div id="engine" className="mt-32">
+        <div id="strategies" className="mt-32">
           <div className="max-w-3xl mb-10">
             <div className="text-xs font-mono uppercase tracking-[0.2em] text-primary mb-4">
               03 — Four titration strategies

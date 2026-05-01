@@ -1,12 +1,34 @@
 import { Activity } from "lucide-react";
-import { Link } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 
 const Navbar = () => {
+  const location = useLocation();
+  const navigate = useNavigate();
+
+  const scrollTo = (id: string) => (e: React.MouseEvent) => {
+    e.preventDefault();
+    const go = () => {
+      if (id === "top") {
+        window.scrollTo({ top: 0, behavior: "smooth" });
+        return;
+      }
+      const el = document.getElementById(id);
+      if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+    };
+    if (location.pathname !== "/") {
+      navigate("/");
+      // wait for landing page to mount before scrolling
+      setTimeout(go, 60);
+    } else {
+      go();
+    }
+  };
+
   return (
     <header className="fixed top-0 inset-x-0 z-50">
       <div className="mx-auto max-w-7xl px-6 mt-4">
         <nav className="glass-panel rounded-2xl flex items-center justify-between px-5 py-3">
-          <a href="#top" className="flex items-center gap-2.5 group">
+          <a href="#" onClick={scrollTo("top")} className="flex items-center gap-2.5 group">
             <div className="relative w-9 h-9 rounded-xl bg-gradient-primary grid place-items-center shadow-glow-soft">
               <Activity className="w-5 h-5 text-primary-foreground" strokeWidth={2.5} />
             </div>
@@ -16,10 +38,10 @@ const Navbar = () => {
             </div>
           </a>
           <div className="hidden md:flex items-center gap-7 text-sm text-muted-foreground">
-            <a href="#about" className="hover:text-foreground transition-colors">About</a>
-            <a href="#how" className="hover:text-foreground transition-colors">How it works</a>
-            <a href="#engine" className="hover:text-foreground transition-colors">Strategies</a>
-            <a href="#chat" className="hover:text-foreground transition-colors">Chat</a>
+            <a href="#" onClick={scrollTo("about")} className="hover:text-foreground transition-colors">About</a>
+            <a href="#" onClick={scrollTo("how")} className="hover:text-foreground transition-colors">How it works</a>
+            <a href="#" onClick={scrollTo("strategies")} className="hover:text-foreground transition-colors">Strategies</a>
+            <a href="#" onClick={scrollTo("chat")} className="hover:text-foreground transition-colors">Chat</a>
           </div>
           <Link
             to="/engine"

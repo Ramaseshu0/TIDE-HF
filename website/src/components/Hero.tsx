@@ -36,7 +36,11 @@ const Hero = () => {
                 <ArrowRight className="w-4 h-4" />
               </Link>
               <a
-                href="#chat"
+                href="#"
+                onClick={(e) => {
+                  e.preventDefault();
+                  document.getElementById("chat")?.scrollIntoView({ behavior: "smooth", block: "start" });
+                }}
                 className="inline-flex items-center gap-2 rounded-xl border border-border bg-secondary/40 px-6 py-3.5 text-sm font-medium hover:bg-secondary transition-colors"
               >
                 Talk to TIDE AI
