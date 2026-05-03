@@ -156,9 +156,20 @@ Drop additional `*.pdf` or `*.docx` files into the right subfolder and re-run `p
 
 Without a running Python API, the chat falls back to a **deterministic offline summary** built from the engine state (no LLM, but still patient-aware). The header pill turns amber to indicate offline mode.
 
+### Groq fallback (when Ollama is down)
+
+If `GROQ_API_KEY` is set in the environment, the RAG layer automatically routes the same retrieved-chunks-plus-engine-context prompt through Groq's hosted Llama-3.3 whenever Ollama returns an error or is offline. Free key from [console.groq.com](https://console.groq.com).
+
+```bash
+export GROQ_API_KEY=gsk_...           # one line in your shell
+python scripts/run_api.py             # restart the API
+```
+
+`GET /health` will report `"groq_fallback": true` so you know the safety net is active. Optional knob: `TIDE_GROQ_MODEL` (default `llama-3.3-70b-versatile`).
+
 ### Troubleshooting
 
-- **`ggml_metal_init: failed to initialize the Metal library` / "llama runner process has terminated"** — Ollama 0.22.1 has a known incompatibility with macOS Tahoe (Darwin 25.x). Until a newer Ollama release lands, the API will return a friendly error from `/chat` and the website will still show retrieved guideline chunks via the offline summary. You can also swap the LLM by setting `TIDE_OLLAMA_MODEL=llama3.2` or pointing `TIDE_OLLAMA_URL` at any other OpenAI-compatible local runtime that exposes `/api/generate`.
+- **`ggml_metal_init: failed to initialize the Metal library` / "llama runner process has terminated"** — Ollama 0.22.1 has a known incompatibility with macOS Tahoe (Darwin 25.x). Until a newer Ollama release lands, set `GROQ_API_KEY` (above) and the chat will keep working through Groq's hosted Llama. You can also swap models with `TIDE_OLLAMA_MODEL=llama3.2` or point `TIDE_OLLAMA_URL` at any OpenAI-compatible local runtime that exposes `/api/generate`.
 - **`segfault` when starting `scripts/run_api.py`** — this is fixed by [scripts/run_api.py](scripts/run_api.py)'s pinned env vars (`TOKENIZERS_PARALLELISM=false`, `OMP_NUM_THREADS=1`, `LOKY_MAX_CPU_COUNT=1`); make sure you launch the server through that script, not raw `uvicorn`.
 - **`Knowledge base is empty`** — run `python scripts/setup_rag.py` once after dropping PDFs/DOCX into `rag_docs/`.
 - **`Missing RAG dependencies`** — run `pip install -e ".[rag]"`.

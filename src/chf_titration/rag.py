@@ -39,6 +39,7 @@ _DOCS_DIR = Path(os.environ.get("TIDE_RAG_DOCS", str(_ROOT / "rag_docs")))
 _EMBED_MODEL  = os.environ.get("TIDE_EMBED_MODEL",  "all-MiniLM-L6-v2")
 _OLLAMA_MODEL = os.environ.get("TIDE_OLLAMA_MODEL", "mistral")
 _OLLAMA_URL   = os.environ.get("TIDE_OLLAMA_URL",   "http://localhost:11434")
+_GROQ_MODEL   = os.environ.get("TIDE_GROQ_MODEL",   "llama-3.3-70b-versatile")
 _COLLECTION   = "tide_hf_v1"
 
 # ── system prompts ────────────────────────────────────────────────────────────
@@ -220,6 +221,8 @@ class TideRAG:
             return []
 
     def _call_ollama(self, prompt: str) -> str:
+        """Call Ollama; on any failure (e.g. macOS Tahoe Metal bug), fall back
+        to Groq if GROQ_API_KEY is set."""
         try:
             import requests
             resp = requests.post(
@@ -228,15 +231,46 @@ class TideRAG:
                 timeout=120,
             )
             resp.raise_for_status()
-            return resp.json().get("response", "").strip()
+            text = resp.json().get("response", "").strip()
+            if text:
+                return text
+            ollama_err: Exception | str = "empty response from Ollama"
         except Exception as exc:
-            return (
-                f"⚠  Ollama is not reachable ({exc}).\n\n"
-                f"Fix:\n"
-                f"  1. Start Ollama:      ollama serve\n"
-                f"  2. Pull the model:    ollama pull {_OLLAMA_MODEL}\n"
-                f"  3. Try again."
+            ollama_err = exc
+
+        # ── Groq fallback (only if user has set GROQ_API_KEY) ────────────
+        groq_key = os.environ.get("GROQ_API_KEY", "").strip()
+        if groq_key:
+            answer = self._call_groq(prompt, groq_key)
+            if answer:
+                return answer
+
+        return (
+            f"⚠  Local LLM is not reachable ({ollama_err}).\n\n"
+            f"Two ways to enable a real RAG response:\n"
+            f"  • Ollama (local, no key):   ollama serve  &&  ollama pull {_OLLAMA_MODEL}\n"
+            f"  • Groq (hosted, free key):  export GROQ_API_KEY=gsk_…\n\n"
+            f"Then send your question again."
+        )
+
+    @staticmethod
+    def _call_groq(prompt: str, api_key: str) -> str | None:
+        """Call Groq's hosted Llama-3.3 with the same RAG prompt. Returns
+        None on failure so the caller can surface a clear error."""
+        try:
+            from groq import Groq
+        except ImportError:
+            return None
+        try:
+            client = Groq(api_key=api_key)
+            resp = client.chat.completions.create(
+                model=_GROQ_MODEL,
+                max_tokens=1500,
+                messages=[{"role": "user", "content": prompt}],
             )
+            return (resp.choices[0].message.content or "").strip() or None
+        except Exception:
+            return None
 
     @staticmethod
     def _pdf_to_text(path: Path) -> str:

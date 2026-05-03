@@ -82,11 +82,13 @@ def evaluate(req: EvaluateRequest) -> dict[str, Any]:
 
 @app.get("/health")
 def health() -> dict[str, Any]:
+    import os as _os
     return {
         "ok": True,
         "bundle_loaded": _bundle is not None,
         "rag_loaded": _rag is not None,
         "rag_chunks": _rag.chunk_count if _rag is not None else 0,
+        "groq_fallback": bool(_os.environ.get("GROQ_API_KEY", "").strip()),
     }
 
 
