@@ -78,8 +78,11 @@ export async function apiHealth(): Promise<{ ok: boolean; bundle_loaded: boolean
   try {
     const res = await fetch(`${API_BASE}/health`, { signal: AbortSignal.timeout(1500) });
     const data = await res.json();
-    pythonBackendAvailable = !!(data.ok && data.bundle_loaded);
-    return { ...data, source: "python" };
+    // The API is available if it answers /health OK. The bundle and RAG load
+    // lazily on first /evaluate or /chat — don't gate on them here, otherwise
+    // the chat will fall back to offline mode when the API is actually fine.
+    pythonBackendAvailable = !!data.ok;
+    return { ok: !!data.ok, bundle_loaded: !!data.bundle_loaded, source: "python" };
   } catch {
     pythonBackendAvailable = false;
     return { ok: true, bundle_loaded: true, source: "browser" };
