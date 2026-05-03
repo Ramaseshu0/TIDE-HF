@@ -108,3 +108,164 @@ export async function evaluatePatient(patient: Patient, strategy: Strategy): Pro
 
 // REP_DRUG re-export so Engine.tsx can label decisions even in browser-only mode
 export { REP_DRUG };
+
+// ── chat (RAG) ──────────────────────────────────────────────────────────────
+
+export type ChatAudience = "patient" | "clinician";
+
+export type ChatRequest = {
+  question: string;
+  audience: ChatAudience;
+  patient: Patient | null;
+  strategy: Strategy;
+  // Optionally pass a previously-computed engine response so the backend
+  // doesn't re-run the engine for this chat call.
+  result?: EvaluateResponse;
+};
+
+export type ChatResponse = {
+  answer: string;
+  engine_context: string;
+  audience: ChatAudience;
+  source: "python" | "browser";
+};
+
+const PATIENT_CTX_KEY = "tide-hf:lastPatient";
+const PATIENT_RES_KEY = "tide-hf:lastResult";
+const PATIENT_STR_KEY = "tide-hf:lastStrategy";
+
+export function rememberPatient(patient: Patient, result: EvaluateResponse, strategy: Strategy) {
+  try {
+    localStorage.setItem(PATIENT_CTX_KEY, JSON.stringify(patient));
+    localStorage.setItem(PATIENT_RES_KEY, JSON.stringify(result));
+    localStorage.setItem(PATIENT_STR_KEY, strategy);
+  } catch { /* localStorage may be disabled */ }
+}
+
+export function recallPatient():
+  | { patient: Patient; result: EvaluateResponse; strategy: Strategy }
+  | null {
+  try {
+    const p = localStorage.getItem(PATIENT_CTX_KEY);
+    const r = localStorage.getItem(PATIENT_RES_KEY);
+    const s = localStorage.getItem(PATIENT_STR_KEY);
+    if (!p || !r) return null;
+    return {
+      patient: JSON.parse(p) as Patient,
+      result: JSON.parse(r) as EvaluateResponse,
+      strategy: (s as Strategy) ?? "strong_hf",
+    };
+  } catch {
+    return null;
+  }
+}
+
+export async function askChat(req: ChatRequest): Promise<ChatResponse> {
+  // Try the Python backend first.
+  if (pythonBackendAvailable !== false) {
+    try {
+      const body: Record<string, unknown> = {
+        question: req.question,
+        audience: req.audience,
+        strategy: req.strategy,
+      };
+      if (req.patient) {
+        body.patient = req.patient;
+        body.labs = req.patient.labs ?? null;
+      }
+      if (req.result) {
+        body.result = {
+          global_stop: req.result.global_stop,
+          order_labs: req.result.order_labs,
+          labs_requested: req.result.labs_requested,
+          preferred_raas: req.result.preferred_raas,
+          decisions: req.result.decisions,
+          active_raas: null,
+        };
+        body.changes = req.result.changes;
+        body.flags = req.result.flags;
+      }
+      const res = await fetch(`${API_BASE}/chat`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(120000),
+      });
+      if (res.ok) {
+        const data = (await res.json()) as Omit<ChatResponse, "source">;
+        pythonBackendAvailable = true;
+        return { ...data, source: "python" };
+      }
+      const errText = await res.text().catch(() => "");
+      throw new Error(`API ${res.status}: ${errText || res.statusText}`);
+    } catch (e) {
+      if (pythonBackendAvailable === null) pythonBackendAvailable = false;
+      // Fall through to offline fallback.
+      const msg = (e as Error).message;
+      if (!/abort|fetch|network|Failed/i.test(msg)) {
+        // Surface real backend errors (e.g. RAG empty) to the user verbatim.
+        return {
+          answer: `⚠ Backend error: ${msg}`,
+          engine_context: "",
+          audience: req.audience,
+          source: "python",
+        };
+      }
+    }
+  }
+
+  // Offline fallback: produce a deterministic patient-aware summary from the
+  // engine state we have. No real LLM, but still personalised.
+  return {
+    answer: offlineChatReply(req),
+    engine_context: req.result ? offlineEngineContext(req.result) : "",
+    audience: req.audience,
+    source: "browser",
+  };
+}
+
+function offlineEngineContext(r: EvaluateResponse): string {
+  const lines: string[] = [];
+  if (r.global_stop) lines.push("STATUS: global_stop");
+  const active = Object.entries(r.flags).filter(([, v]) => v).map(([k]) => k);
+  if (active.length) lines.push("Active flags: " + active.join(", "));
+  if (r.preferred_raas) lines.push("Preferred RAAS: " + r.preferred_raas);
+  for (const [cls, ch] of Object.entries(r.changes)) {
+    lines.push(`  ${cls}: ${ch.concrete_action} ${ch.current}→${ch.new_dose} mg [${ch.reason}]`);
+  }
+  return lines.join("\n");
+}
+
+function offlineChatReply({ question, audience, patient, result }: ChatRequest): string {
+  const intro = audience === "patient"
+    ? "I can't reach the AI backend right now, so this is a quick rule-based summary."
+    : "Backend unreachable — falling back to a deterministic engine summary.";
+
+  if (!patient || !result) {
+    return `${intro}\n\nNo patient is loaded yet. Open the **Engine** tab, edit a preset, click **Compute**, then come back to ask about that patient. To enable full AI answers, run \`python scripts/run_api.py\` and \`python scripts/setup_rag.py\` locally.\n\nQuestion: *${question}*`;
+  }
+
+  const flags = Object.entries(result.flags).filter(([, v]) => v).map(([k]) => k);
+  const changes = Object.entries(result.changes).map(([cls, ch]) =>
+    `- **${cls}** — ${ch.concrete_action} · ${ch.current} mg → ${ch.new_dose} mg · *${ch.reason.replace(/_/g, " ")}*`,
+  );
+  const banners: string[] = [];
+  if (result.global_stop) banners.push("**GLOBAL STOP** — all GDMT held; escalate.");
+  if (result.order_labs) banners.push(`**Order labs** for: ${result.labs_requested.join(", ")}.`);
+
+  return [
+    intro,
+    "",
+    `**Patient:** ${patient.age}${patient.gender}, *${patient.note}*`,
+    flags.length ? `**Active flags:** ${flags.join(", ")}` : "**No adverse-effect flags fired.**",
+    `**Preferred RAAS:** ${result.preferred_raas ?? "none"}`,
+    ...banners,
+    "",
+    "**Engine actions:**",
+    ...changes,
+    "",
+    audience === "patient"
+      ? "Talk to your care team if anything here looks new — they'll explain in plain language."
+      : "Confirm against AHA 2022 GDMT thresholds and STRONG-HF up-titration windows before acting.",
+  ].join("\n");
+}

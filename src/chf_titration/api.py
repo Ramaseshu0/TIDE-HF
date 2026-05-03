@@ -2,6 +2,8 @@
 
 GET  /presets       → list of preset patient dicts (from synthesize.PATIENTS)
 POST /evaluate      → run classifier + engine + strategy on a patient payload
+POST /chat          → patient-aware RAG answer (ChromaDB + Ollama)
+GET  /health        → backend status (engine + RAG readiness)
 """
 from __future__ import annotations
 
@@ -80,4 +82,84 @@ def evaluate(req: EvaluateRequest) -> dict[str, Any]:
 
 @app.get("/health")
 def health() -> dict[str, Any]:
-    return {"ok": True, "bundle_loaded": _bundle is not None}
+    return {
+        "ok": True,
+        "bundle_loaded": _bundle is not None,
+        "rag_loaded": _rag is not None,
+        "rag_chunks": _rag.chunk_count if _rag is not None else 0,
+    }
+
+
+# ─── RAG / chat ──────────────────────────────────────────────────────────────
+
+_rag = None  # lazily loaded TideRAG
+
+
+def _get_rag():
+    """Lazy-init the RAG engine. Returns None if dependencies aren't installed."""
+    global _rag
+    if _rag is not None:
+        return _rag
+    try:
+        from chf_titration.rag import TideRAG
+        _rag = TideRAG()
+        return _rag
+    except ImportError as e:
+        raise HTTPException(
+            503,
+            f"RAG dependencies missing: {e}. Run `pip install -e '.[rag]'`.",
+        )
+    except Exception as e:
+        raise HTTPException(503, f"RAG engine failed to initialize: {e}")
+
+
+class ChatRequest(BaseModel):
+    question: str
+    audience: str = "patient"           # "patient" | "clinician"
+    patient: dict[str, Any] | None = None
+    strategy: str = "strong_hf"
+    labs: dict[str, float] | None = None
+    # if the caller already ran /evaluate they can pass result+changes+flags
+    # to skip redoing the engine run for the chat call:
+    result: dict[str, Any] | None = None
+    changes: dict[str, Any] | None = None
+    flags: dict[str, bool] | None = None
+
+
+@app.post("/chat")
+def chat(req: ChatRequest) -> dict[str, Any]:
+    rag = _get_rag()
+
+    if rag.chunk_count == 0:
+        raise HTTPException(
+            503,
+            "Knowledge base is empty. Run `python scripts/setup_rag.py` to index PDFs.",
+        )
+
+    if req.audience not in ("patient", "clinician"):
+        raise HTTPException(400, f"audience must be 'patient' or 'clinician', got {req.audience!r}")
+
+    # Build the engine context if we have a patient. If the caller already
+    # ran /evaluate and passed result/changes/flags, reuse them; otherwise
+    # run the engine here so the chat is still patient-aware.
+    engine_context = "(no patient selected — answer from guidelines only)"
+    if req.patient:
+        from chf_titration.rag import build_engine_context
+        if req.result and req.changes and req.flags is not None:
+            result, changes, flags = req.result, req.changes, req.flags
+        else:
+            bundle = _get_bundle()
+            patient_full = {**req.patient, "targets": TARGETS}
+            contras_derived = derive_contraindications(patient_full)
+            patient_full = {**patient_full, "contras": {**patient_full.get("contras", {}), **contras_derived}}
+            tps = synthesize_week(patient_full)
+            flags, _ = predict_flags(patient_full, tps, bundle)
+            labs = req.labs if req.labs else patient_full.get("labs")
+            result = _engine.evaluate(patient_full, tps, flags, labs=labs, awaiting_labs=set())
+            changes = apply_strategy(result, patient_full, strategy=req.strategy)
+        engine_context = build_engine_context(
+            result, changes, req.patient, flags, req.labs or req.patient.get("labs")
+        )
+
+    answer = rag.ask(req.question.strip(), engine_context, audience=req.audience)
+    return {"answer": answer, "engine_context": engine_context, "audience": req.audience}

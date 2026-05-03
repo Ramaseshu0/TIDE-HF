@@ -8,7 +8,7 @@ import {
   PATIENTS, STRATEGIES, STRATEGY_DESC, FLAG_LABELS, CLASSES, REP_DRUG,
   type Patient, type Strategy, type DrugClass,
 } from "@/lib/tide-engine";
-import { evaluatePatient, apiHealth, type EvaluateResponse } from "@/lib/tide-api";
+import { evaluatePatient, apiHealth, rememberPatient, type EvaluateResponse } from "@/lib/tide-api";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
@@ -74,6 +74,7 @@ const Engine = () => {
     try {
       const r = await evaluatePatient(patient, strategy);
       setResult(r);
+      rememberPatient(patient, r, strategy);
     } catch (e) {
       setError((e as Error).message);
     } finally {

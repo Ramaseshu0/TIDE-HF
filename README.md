@@ -94,7 +94,7 @@ The pill in the Engine console header shows which mode is live (green = Python, 
 ### Optional: real Python engine for the web Engine console
 
 ```bash
-# Terminal 1 — Python API (LightGBM classifier + engine + strategy)
+# Terminal 1 — Python API (LightGBM classifier + engine + strategy + RAG /chat)
 python scripts/run_api.py            # http://127.0.0.1:8000
 
 # Terminal 2 — website
@@ -102,6 +102,66 @@ cd website && npm run dev            # http://localhost:8901
 ```
 
 Override the API URL at build/dev time with `VITE_TIDE_API=https://…`.
+
+---
+
+## TIDE-HF Assistant (local RAG)
+
+The website's **TIDE-HF Assistant** chat is a real retrieval-augmented LLM, not a canned-reply demo. It indexes the clinical PDFs you put in `rag_docs/` (AHA 2022 HF guideline · STRONG-HF · drug monographs · patient leaflets) and answers grounded questions about the **currently loaded patient** — labs, vitals, meds, contraindications, classifier flags, and the engine's per-class actions.
+
+The stack is fully local — no API keys, no internet after first install:
+
+| Component | Purpose | Disk |
+|---|---|---|
+| **ChromaDB** | Vector store for the chunked guideline PDFs | ~50 MB |
+| **all-MiniLM-L6-v2** | Embedding model (CPU) | ~80 MB |
+| **Ollama + mistral** | Generation model | ~4.4 GB |
+
+### Setup (one-time)
+
+```bash
+# 1. Install RAG extras
+pip install -e ".[rag]"
+
+# 2. Install Ollama (the local LLM runtime) and pull mistral
+brew install ollama
+ollama serve &                      # leave this running
+ollama pull mistral                 # 4.4 GB download — one time
+
+# 3. Index the knowledge base under rag_docs/
+python scripts/setup_rag.py         # ~1 min on Apple silicon
+```
+
+### Knowledge-base layout
+
+```
+rag_docs/
+├── clinical/   ← shown to clinicians (AHA guideline, STRONG-HF, drug monographs)
+├── patient/    ← shown to patients   (plain-language guides, symptom trackers)
+└── shared/     ← shown to both       (optional)
+```
+
+Drop additional `*.pdf` or `*.docx` files into the right subfolder and re-run `python scripts/setup_rag.py --force` to re-index.
+
+### Talking to the assistant
+
+1. Launch the API + website (see "Optional: real Python engine" above).
+2. Open **http://localhost:8901/#/engine**, pick a preset (or edit any field), click **Compute**. The latest patient state is cached in `localStorage`.
+3. Scroll down to the **TIDE-HF Assistant** chat (or click "Chat" in the navbar).
+4. Toggle **Patient** ⇄ **Clinician** in the chat header to switch tone and retrieval scope (clinical PDFs vs patient-friendly leaflets).
+5. The chat header shows the loaded patient name + any `global_stop` / `order_labs` banners. Ask things like:
+   - *"Why was my spironolactone reduced?"* (patient mode)
+   - *"AHA 2022 threshold for MRA dose reduction in hyperkalemia?"* (clinician mode)
+   - *"What does the engine recommend for this patient and why?"*
+
+Without a running Python API, the chat falls back to a **deterministic offline summary** built from the engine state (no LLM, but still patient-aware). The header pill turns amber to indicate offline mode.
+
+### Troubleshooting
+
+- **`ggml_metal_init: failed to initialize the Metal library` / "llama runner process has terminated"** — Ollama 0.22.1 has a known incompatibility with macOS Tahoe (Darwin 25.x). Until a newer Ollama release lands, the API will return a friendly error from `/chat` and the website will still show retrieved guideline chunks via the offline summary. You can also swap the LLM by setting `TIDE_OLLAMA_MODEL=llama3.2` or pointing `TIDE_OLLAMA_URL` at any other OpenAI-compatible local runtime that exposes `/api/generate`.
+- **`segfault` when starting `scripts/run_api.py`** — this is fixed by [scripts/run_api.py](scripts/run_api.py)'s pinned env vars (`TOKENIZERS_PARALLELISM=false`, `OMP_NUM_THREADS=1`, `LOKY_MAX_CPU_COUNT=1`); make sure you launch the server through that script, not raw `uvicorn`.
+- **`Knowledge base is empty`** — run `python scripts/setup_rag.py` once after dropping PDFs/DOCX into `rag_docs/`.
+- **`Missing RAG dependencies`** — run `pip install -e ".[rag]"`.
 
 ---
 
@@ -168,7 +228,9 @@ TIDE-HF/
 │   ├── engine.py          # TitrationEngine v1.2 + contraindications
 │   ├── strategy.py        # apply_strategy: 4 strategies
 │   ├── classifier.py      # train_classifier, load_bundle, predict_flags
-│   ├── api.py             # FastAPI backend for the web Engine console
+│   ├── api.py             # FastAPI backend (engine + /chat RAG)
+│   ├── rag.py             # ChromaDB + sentence-transformers + Ollama bridge
+│   ├── rag_ui.py          # Drop-in Streamlit "💬 Ask AI" tab
 │   ├── ui.py              # Streamlit app
 │   └── data/              # reference CSVs (GDMT, ICDs, lab maps)
 ├── scripts/
@@ -177,9 +239,12 @@ TIDE-HF/
 │   ├── prepare.py         # one-shot: generate + train (idempotent)
 │   ├── run_ui.py          # auto-prepares bundle on first launch
 │   ├── run_api.py         # FastAPI server on :8000
-│   └── run_mcp.py
+│   ├── run_mcp.py
+│   └── setup_rag.py       # index PDFs/DOCX in rag_docs/ → rag_db/
 ├── data/                  # synthetic parquets land here
 ├── models/                # trained bundles land here (chf_classifier_lgbm.pkl)
+├── rag_docs/              # clinical/, patient/, shared/ — the RAG knowledge base
+├── rag_db/                # ChromaDB persistent store (gitignored)
 ├── synthetic_data/        # standalone synthetic-CSV generators
 ├── tests/
 ├── website/               # Vite + React + shadcn-ui app (landing + Engine console)
