@@ -123,14 +123,39 @@ The stack is fully local — no API keys, no internet after first install:
 # 1. Install RAG extras
 pip install -e ".[rag]"
 
-# 2. Install Ollama (the local LLM runtime) and pull mistral
+# 2. Install Ollama and pull a model
 brew install ollama
 ollama serve &                      # leave this running
-ollama pull mistral                 # 4.4 GB download — one time
+
+# Default model is qwen3.5:4b (3.4 GB) — small/fast, OK answers.
+# For best clinical quality, also pull a 14B or larger:
+ollama pull qwen3.5:4b              # default
+# ollama pull qwen3:14b             # 8.2 GB — much better at following instructions
+# ollama pull mistral               # ⚠ broken on macOS Tahoe (Metal SDK bug)
 
 # 3. Index the knowledge base under rag_docs/
 python scripts/setup_rag.py         # ~1 min on Apple silicon
 ```
+
+### Picking a model (answer quality matters)
+
+Small local models (≤4B params) often refuse, hallucinate numbers, or give boilerplate answers even when the patient data is clearly in the prompt. For real clinical-quality answers, pick one of:
+
+| Option | Disk / network | Quality | How to enable |
+|---|---|---|---|
+| **qwen3.5:4b** (default) | 3.4 GB local | OK for quick replies, sometimes hallucinates | nothing — used by default |
+| **qwen3:14b** local | 8.2 GB local | Much better follows instructions | `ollama pull qwen3:14b` then `export TIDE_OLLAMA_MODEL=qwen3:14b` |
+| **Groq Llama-3.3-70B** (recommended) | hosted, free key | Best — fast, follows instructions, cites numbers | get key at [console.groq.com](https://console.groq.com), `export GROQ_API_KEY=gsk_…` |
+
+Groq is the safety net even when Ollama works — if Ollama fails or returns empty, the same prompt is automatically routed through Groq.
+
+Tunable env vars:
+- `TIDE_OLLAMA_MODEL` (default `qwen3.5:4b`)
+- `TIDE_GROQ_MODEL` (default `llama-3.3-70b-versatile`)
+- `TIDE_LLM_TEMPERATURE` (default `0.45`)
+- `TIDE_LLM_TOP_P` (default `0.9`)
+- `TIDE_LLM_MAX_TOKENS` (default `900`)
+- `TIDE_RETRIEVE_K` (default `10`)
 
 ### Knowledge-base layout
 
@@ -143,13 +168,31 @@ rag_docs/
 
 Drop additional `*.pdf` or `*.docx` files into the right subfolder and re-run `python scripts/setup_rag.py --force` to re-index.
 
+### Daily run (3 terminals)
+
+Once the one-time setup above is done, every session is:
+
+```bash
+# Terminal 1 — Ollama (skip if you only use Groq)
+ollama serve
+
+# Terminal 2 — Python API (engine + RAG /chat)
+cd ~/Documents/TIDE-HF
+source .venv/bin/activate
+export GROQ_API_KEY=gsk_...        # optional: enables fallback / best quality
+python scripts/run_api.py          # http://127.0.0.1:8000
+
+# Terminal 3 — Website
+cd ~/Documents/TIDE-HF/website
+npm run dev                        # http://localhost:8901  (or 8902 if 8901 is busy)
+```
+
 ### Talking to the assistant
 
-1. Launch the API + website (see "Optional: real Python engine" above).
-2. Open **http://localhost:8901/#/engine**, pick a preset (or edit any field), click **Compute**. The latest patient state is cached in `localStorage`.
-3. Scroll down to the **TIDE-HF Assistant** chat (or click "Chat" in the navbar).
-4. Toggle **Patient** ⇄ **Clinician** in the chat header to switch tone and retrieval scope (clinical PDFs vs patient-friendly leaflets).
-5. The chat header shows the loaded patient name + any `global_stop` / `order_labs` banners. Ask things like:
+1. Open **http://localhost:8901/#/engine**, pick a preset (or edit any field), click **Compute**. The latest patient state is cached in `localStorage`.
+2. Scroll down to the **TIDE-HF Assistant** chat (or click "Chat" in the navbar).
+3. Toggle **Patient** ⇄ **Clinician** in the chat header to switch tone and retrieval scope (clinical PDFs vs patient-friendly leaflets).
+4. The chat header shows the loaded patient name + any `global_stop` / `order_labs` banners. Ask things like:
    - *"Why was my spironolactone reduced?"* (patient mode)
    - *"AHA 2022 threshold for MRA dose reduction in hyperkalemia?"* (clinician mode)
    - *"What does the engine recommend for this patient and why?"*

@@ -37,24 +37,55 @@ _DOCS_DIR = Path(os.environ.get("TIDE_RAG_DOCS", str(_ROOT / "rag_docs")))
 
 # ── tunables via env ──────────────────────────────────────────────────────────
 _EMBED_MODEL  = os.environ.get("TIDE_EMBED_MODEL",  "all-MiniLM-L6-v2")
-_OLLAMA_MODEL = os.environ.get("TIDE_OLLAMA_MODEL", "mistral")
+_OLLAMA_MODEL = os.environ.get("TIDE_OLLAMA_MODEL", "qwen3.5:4b")
 _OLLAMA_URL   = os.environ.get("TIDE_OLLAMA_URL",   "http://localhost:11434")
 _GROQ_MODEL   = os.environ.get("TIDE_GROQ_MODEL",   "llama-3.3-70b-versatile")
 _COLLECTION   = "tide_hf_v1"
 
+# Generation params — tuned for patient-personalized answers without
+# being so creative they invent clinical facts.
+_TEMPERATURE = float(os.environ.get("TIDE_LLM_TEMPERATURE", "0.45"))
+_TOP_P       = float(os.environ.get("TIDE_LLM_TOP_P",       "0.9"))
+_MAX_TOKENS  = int(  os.environ.get("TIDE_LLM_MAX_TOKENS",  "900"))
+_RETRIEVE_K  = int(  os.environ.get("TIDE_RETRIEVE_K",      "10"))
+
 # ── system prompts ────────────────────────────────────────────────────────────
+# These prompts are deliberately strict: every answer MUST be grounded in
+# this specific patient's numbers, and every clinical claim MUST come from
+# the retrieved guideline chunks. No generic "talk to your doctor" filler.
+
 _SYSTEM_PATIENT = textwrap.dedent("""\
-    You are a friendly heart-failure care assistant talking to a patient.
-    Use plain, simple English. Avoid medical jargon.
-    Explain what is happening with the patient's medications and what to watch for.
-    Only use information from the guidelines provided — never invent clinical facts.
-    Keep your answer to 3-4 short paragraphs.""")
+    You are TIDE-HF, a heart-failure care companion talking with ONE specific
+    patient whose data is provided. Speak warmly and in plain English.
+
+    Rules for every answer:
+    • Quote at least TWO of this patient's actual numbers (e.g. "your potassium
+      of 6.3", "your weight is up 4 lb"). Never give generic answers.
+    • Explain any engine flag (global_stop, hold, order_labs) using the
+      patient's numbers, not abstract definitions.
+    • Translate jargon: ARNi → "Entresto", MRA → "spironolactone (a water-pill
+      helper)", SGLT2i → "Jardiance/Farxiga". Define on first use.
+    • End with ONE specific next step tied to a number from the data.
+    • Never invent facts not in the patient data or guidelines.
+
+    Length: 3 short paragraphs. Use **bold** for key numbers.""")
 
 _SYSTEM_CLINICIAN = textwrap.dedent("""\
-    You are a clinical decision-support assistant for a cardiologist.
-    Give a concise, precise rationale citing AHA 2022 guidelines, STRONG-HF
-    thresholds, and specific lab values where relevant.
-    Use standard medical terminology. Keep your answer under 200 words.""")
+    You are TIDE-HF, a clinical decision-support assistant. The data is from
+    ONE specific HFrEF patient: engine flags, lab gates, contraindications,
+    per-class actions. Cite only the provided guidelines (AHA/ACC/HFSA 2022,
+    STRONG-HF, drug monographs).
+
+    Rules for every answer:
+    • Anchor every claim to THIS patient's numbers
+      (e.g. "K⁺ 6.3 > 6.0 ⇒ global_stop", "bisoprolol 5 mg = 50% of 10 mg target").
+    • When you cite a threshold, give the threshold AND the patient value AND
+      the delta/ratio.
+    • If an engine action looks counter-intuitive, name the rule that produced
+      it (lab gate, AE resolver, dose-rung table, contraindication cascade).
+    • End with ONE concrete next step — lab, dose, monitor, or referral.
+
+    Length: ≤220 words. Use Markdown bullets for the action list.""")
 
 
 # ═════════════════════════════════════════════════════════════════════════════
@@ -166,13 +197,15 @@ class TideRAG:
         question:       str,
         engine_context: str,
         audience:       str = "patient",  # "patient" | "clinician"
-        k:              int = 5,
+        k:              int | None = None,
     ) -> str:
         """
-        Retrieve relevant guideline chunks, build the prompt, call Ollama.
+        Retrieve relevant guideline chunks, build the prompt, call the LLM.
 
-        Returns the generated answer as a string.
-        If Ollama is not running, returns a human-readable error with fix steps.
+        The retrieval query is the question PLUS the salient signals from the
+        engine context (active flags, dose changes, key labs). This pulls in
+        chunks that match what's actually happening with this patient, not
+        just the literal words of the question.
         """
         if self._col.count() == 0:
             return (
@@ -180,24 +213,56 @@ class TideRAG:
                 "Run  python scripts/setup_rag.py  first to index your PDFs."
             )
 
-        chunks = self._retrieve(question, audience, k)
-        if not chunks:
-            chunks = self._retrieve(question, "shared", k)  # fallback
+        k = k or _RETRIEVE_K
+        retrieval_query = self._build_retrieval_query(question, engine_context)
 
-        context_block = "\n\n---\n\n".join(chunks) if chunks else "(no guidelines retrieved)"
+        chunks = self._retrieve(retrieval_query, audience, k)
+        if not chunks:
+            chunks = self._retrieve(retrieval_query, "shared", k)  # fallback
+
+        context_block = (
+            "\n\n---\n\n".join(chunks) if chunks else "(no guidelines retrieved)"
+        )
         system = _SYSTEM_PATIENT if audience == "patient" else _SYSTEM_CLINICIAN
 
+        # XML-style tags are unambiguous to small instruction-tuned models
+        # (qwen3.5:4b, llama-3.1-8b). They prevent the "=== SECTION ===" header
+        # from being misread as a placeholder for content the user hasn't sent.
         prompt = (
             f"{system}\n\n"
-            f"=== PATIENT STATE (from titration engine) ===\n"
-            f"{engine_context}\n\n"
-            f"=== RELEVANT CLINICAL GUIDELINES ===\n"
-            f"{context_block}\n\n"
-            f"=== QUESTION ===\n"
-            f"{question}"
+            f"You are now reviewing this real patient. Their full state is in "
+            f"<patient_data>. Use it directly — do NOT say information is "
+            f"missing.\n\n"
+            f"<patient_data>\n{engine_context}\n</patient_data>\n\n"
+            f"<guidelines>\n{context_block}\n</guidelines>\n\n"
+            f"<question audience=\"{audience}\">\n{question}\n</question>\n\n"
+            f"Write your answer now. Reference at least two specific numbers "
+            f"from <patient_data> in the first paragraph. Quote the relevant "
+            f"threshold from <guidelines> when you cite a clinical rule. Do "
+            f"not output XML tags or section headers in your answer."
         )
 
         return self._call_ollama(prompt)
+
+    @staticmethod
+    def _build_retrieval_query(question: str, engine_context: str) -> str:
+        """Combine the user's question with the salient lines from the engine
+        context so retrieval matches what's actually going on with the
+        patient, not just the words in the question."""
+        salient: list[str] = []
+        for line in engine_context.splitlines():
+            l = line.strip()
+            if not l:
+                continue
+            # Keep the high-signal lines: status, flags, labs, decisions.
+            if l.startswith(("STATUS:", "Active adverse effects:", "Labs",
+                              "RAAS:", "Patient:")):
+                salient.append(l)
+            elif l.lstrip().startswith(("ACEi", "ARB", "ARNi", "RAAS",
+                                          "beta_blocker", "MRA", "SGLT2i",
+                                          "loop")):
+                salient.append(l.strip())
+        return question + "\n" + "\n".join(salient[:12])
 
     # ── internal helpers ──────────────────────────────────────────────────────
 
@@ -227,14 +292,34 @@ class TideRAG:
             import requests
             resp = requests.post(
                 f"{_OLLAMA_URL}/api/generate",
-                json={"model": _OLLAMA_MODEL, "prompt": prompt, "stream": False},
-                timeout=120,
+                json={
+                    "model":  _OLLAMA_MODEL,
+                    "prompt": prompt,
+                    "stream": False,
+                    # Disable Qwen-style chain-of-thought tokens — we want the
+                    # whole budget spent on the actual answer.
+                    "think":  False,
+                    "options": {
+                        "temperature":     _TEMPERATURE,
+                        "top_p":           _TOP_P,
+                        "num_predict":     _MAX_TOKENS,
+                        "repeat_penalty":  1.15,   # discourage boilerplate
+                    },
+                },
+                timeout=180,
             )
             resp.raise_for_status()
-            text = resp.json().get("response", "").strip()
+            data = resp.json()
+            # Prefer .response. If it's empty (older Ollama still emits the
+            # thinking field even when think:false), salvage that as a fallback.
+            text = (data.get("response") or "").strip()
+            if not text:
+                text = (data.get("thinking") or "").strip()
             if text:
                 return text
-            ollama_err: Exception | str = "empty response from Ollama"
+            ollama_err: Exception | str = (
+                f"empty response (done_reason={data.get('done_reason')})"
+            )
         except Exception as exc:
             ollama_err = exc
 
@@ -265,7 +350,9 @@ class TideRAG:
             client = Groq(api_key=api_key)
             resp = client.chat.completions.create(
                 model=_GROQ_MODEL,
-                max_tokens=1500,
+                temperature=_TEMPERATURE,
+                top_p=_TOP_P,
+                max_tokens=_MAX_TOKENS,
                 messages=[{"role": "user", "content": prompt}],
             )
             return (resp.choices[0].message.content or "").strip() or None
