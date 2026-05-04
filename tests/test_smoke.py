@@ -55,6 +55,41 @@ def test_confirmed_hyperk_triggers_global_stop():
     assert result["global_stop"] is True, "K=6.3 must trigger global_stop"
 
 
+def test_suspected_lab_ae_with_coincident_vital_ae_orders_labs():
+    """Regression: when a class has BOTH a suspected lab AE (hyperK / renal) AND
+    a vital-sign immediate AE (hypotension / brady) in the same cycle and labs
+    are absent, the engine must hold the class and order labs rather than
+    short-circuiting on the immediate AE and confidently down-titrating."""
+    patient = PATIENTS["Suspected hyperkalemia"]
+    patient_full = {**patient, "targets": TARGETS}
+    tps = synthesize_week(patient)
+
+    # Mirror the simulator's classifier output for this preset.
+    flags = _all_false_flags()
+    for k in (
+        "hypotension_detected", "bradycardia_detected",
+        "hyperkalemia_detected", "renal_dysfunction_detected",
+        "metabolic_acidosis_detected",
+    ):
+        flags[k] = True
+
+    engine = TitrationEngine()
+    result = engine.evaluate(patient_full, tps, flags, labs=None, awaiting_labs=set())
+
+    assert result["order_labs"] is True, \
+        "labs must be ordered when a suspected lab AE is flagged without labs"
+    assert not result["global_stop"]
+    held_with_reason = {
+        cls: result["decisions"][cls]["reason"]
+        for cls in ("ACEi", "beta_blocker", "MRA", "loop")
+    }
+    for cls, reason in held_with_reason.items():
+        assert reason == "suspected_ae_awaiting_labs", \
+            f"{cls} should be holding for suspected_ae_awaiting_labs, got {reason!r}"
+        assert result["decisions"][cls]["action"] == "hold_titration", \
+            f"{cls} should be hold_titration, got {result['decisions'][cls]['action']!r}"
+
+
 if __name__ == "__main__":
     import pytest
     pytest.main([__file__, "-v"])

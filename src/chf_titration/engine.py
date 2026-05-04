@@ -311,14 +311,20 @@ class TitrationEngine:
         if has_labs and self._lab_ae(cls, labs, cr_pct):
             d.action = "decrease_dose" if on else "maintain_dose"; d.reason = "lab_ae"
             return d
+        # When a suspected lab AE is present and we have no labs this cycle, hold the
+        # class and order labs *before* falling through to the vital-sign immediate-AE
+        # branch. Otherwise a co-occurring hypotension/bradycardia flag short-circuits
+        # the lab request and the engine confidently down-titrates a class whose lab
+        # status it can't actually verify (the "Suspected hyperkalemia" failure mode:
+        # mild hypotension + brady from the synth pattern get treated as immediate AEs
+        # and the hyperK/renal/acidosis flags never make it to labs_requested).
+        if not has_labs and self._sus_ae(cls, flags):
+            d.action = "hold_titration" if on else "maintain_dose"
+            d.reason = "suspected_ae_awaiting_labs"
+            return d
         if self._imm_ae(cls, flags):
             d.action = "decrease_dose" if on else "maintain_dose"; d.reason = "immediate_ae"
             return d
-        if self._sus_ae(cls, flags):
-            if not has_labs:
-                d.action = "hold_titration" if on else "maintain_dose"
-                d.reason = "suspected_ae_awaiting_labs"
-                return d
         if not on:
             if cls in ("ACEi", "ARB", "ARNi"):
                 if res.preferred_raas == cls and res.active_raas is None:
