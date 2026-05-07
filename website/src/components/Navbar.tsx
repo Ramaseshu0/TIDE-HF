@@ -43,12 +43,30 @@ const Navbar = () => {
             <a href="#" onClick={scrollTo("strategies")} className="hover:text-foreground transition-colors">Strategies</a>
             <a href="#" onClick={scrollTo("chat")} className="hover:text-foreground transition-colors">Chat</a>
           </div>
-          <Link
-            to="/engine"
-            className="rounded-xl bg-gradient-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow-glow-soft hover:shadow-glow transition-shadow"
-          >
-            Open Engine →
-          </Link>
+          <div className="flex items-center gap-3">
+            <a
+              href="https://qas.ai"
+              target="_blank"
+              rel="noreferrer"
+              className="hidden sm:flex items-center gap-2 rounded-xl border border-border bg-secondary/40 hover:bg-secondary px-2 py-1 transition-colors"
+              title="Affiliated with QAS.AI"
+            >
+              <img
+                src={`${import.meta.env.BASE_URL}qas-ai.png`}
+                alt="QAS.AI"
+                className="w-7 h-7 rounded-md object-contain"
+              />
+              <span className="text-[10px] font-mono uppercase tracking-[0.18em] text-muted-foreground leading-tight">
+                Affiliated with<br />QAS.AI
+              </span>
+            </a>
+            <Link
+              to="/engine"
+              className="rounded-xl bg-gradient-primary px-4 py-2 text-sm font-medium text-primary-foreground shadow-glow-soft hover:shadow-glow transition-shadow"
+            >
+              Open Engine →
+            </Link>
+          </div>
         </nav>
       </div>
     </header>
