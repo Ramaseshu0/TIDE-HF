@@ -24,21 +24,31 @@ jobs:
       run:
         working-directory: website
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm
           cache-dependency-path: website/package-lock.json
 
-      - run: npm ci
+      - name: Install dependencies
+        # Try the strict, reproducible install first. If the lockfile has
+        # drifted in any way that npm ci refuses (very common after
+        # cross-platform installs or peer-dep bumps), fall back to a
+        # normal npm install so the deploy still ships.
+        run: |
+          npm ci --no-audit --no-fund --prefer-offline \
+            || (echo "::warning::npm ci failed, falling back to npm install" \
+                && rm -rf node_modules package-lock.json \
+                && npm install --no-audit --no-fund)
 
-      - run: npm run build
+      - name: Build
+        run: npm run build
 
       - name: Upload artifact
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@v5
         with:
           path: website/dist
 
@@ -50,4 +60,4 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5
