@@ -13,7 +13,7 @@ const Hero = () => {
           <div className="animate-fade-up">
             <div className="inline-flex items-center gap-2 rounded-full border border-border bg-card/50 backdrop-blur px-3.5 py-1.5 text-xs text-muted-foreground mb-6">
               <Sparkles className="w-3.5 h-3.5 text-primary" />
-              <span className="font-mono uppercase tracking-wider">Clinical AI · Heart Failure</span>
+              <span className="font-mono uppercase tracking-wider">Clinical AI · Heart Failure · Simulator</span>
             </div>
 
             <h1 className="font-display text-5xl md:text-6xl lg:text-7xl font-semibold leading-[1.02] tracking-tight">
