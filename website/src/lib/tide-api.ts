@@ -9,6 +9,13 @@ import {
 
 const API_BASE = (import.meta.env.VITE_TIDE_API as string | undefined) ?? "http://127.0.0.1:8000";
 
+// When the backend is reached through an ngrok free tunnel, ngrok serves an
+// HTML "browser warning" interstitial instead of proxying the request — which
+// would arrive here as HTML instead of JSON and break every API call. Sending
+// this header on each request tells ngrok to skip the interstitial. It is
+// harmless when the backend is reached directly (local dev / Hugging Face).
+const TUNNEL_HEADERS = { "ngrok-skip-browser-warning": "true" } as const;
+
 export type EngineDecision = { action: string; reason: string };
 export type StrategyChange = {
   engine_action: string;
@@ -76,7 +83,7 @@ let pythonBackendAvailable: boolean | null = null;
 
 export async function apiHealth(): Promise<{ ok: boolean; bundle_loaded: boolean; source: "python" | "browser" }> {
   try {
-    const res = await fetch(`${API_BASE}/health`, { signal: AbortSignal.timeout(1500) });
+    const res = await fetch(`${API_BASE}/health`, { headers: { ...TUNNEL_HEADERS }, signal: AbortSignal.timeout(1500) });
     const data = await res.json();
     // The API is available if it answers /health OK. The bundle and RAG load
     // lazily on first /evaluate or /chat — don't gate on them here, otherwise
@@ -94,7 +101,7 @@ export async function evaluatePatient(patient: Patient, strategy: Strategy): Pro
     try {
       const res = await fetch(`${API_BASE}/evaluate`, {
         method: "POST",
-        headers: { "content-type": "application/json" },
+        headers: { "content-type": "application/json", ...TUNNEL_HEADERS },
         body: JSON.stringify({ patient, strategy, labs: patient.labs ?? null }),
         signal: AbortSignal.timeout(8000),
       });
@@ -190,7 +197,7 @@ export async function askChat(req: ChatRequest): Promise<ChatResponse> {
       }
       const res = await fetch(`${API_BASE}/chat`, {
         method: "POST",
-        headers: { "content-type": "application/json" },
+        headers: { "content-type": "application/json", ...TUNNEL_HEADERS },
         body: JSON.stringify(body),
         signal: AbortSignal.timeout(120000),
       });

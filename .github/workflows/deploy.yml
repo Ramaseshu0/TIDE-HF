@@ -45,7 +45,14 @@ jobs:
                 && npm install --no-audit --no-fund)
 
       - name: Build
+        # VITE_TIDE_API points the deployed site at the live RAG backend.
+        # Set it as a repo Variable (Settings → Secrets and variables →
+        # Actions → Variables) to your ngrok URL, e.g.
+        # https://your-name.ngrok-free.app  — leave unset to fall back to
+        # browser-only mode (no live RAG).
         run: npm run build
+        env:
+          VITE_TIDE_API: ${{ vars.VITE_TIDE_API }}
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v5

@@ -7,3 +7,12 @@ streamlit>=1.30
 groq>=0.11
 fastapi>=0.110
 uvicorn>=0.27
+
+fastapi
+uvicorn
+langchain
+chromadb
+sentence-transformers
+pydantic
+python-dotenv
+requests
