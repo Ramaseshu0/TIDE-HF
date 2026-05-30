@@ -12,11 +12,15 @@ import {
 //   2. production build — the public ngrok tunnel to the laptop running the API,
 //      so the deployed GitHub Pages site (incl. mobile) reaches the live RAG
 //   3. local dev        — the API on this same machine
-const API_BASE =
-  (import.meta.env.VITE_TIDE_API as string | undefined) ??
-  (import.meta.env.PROD
+// Treat an empty/whitespace VITE_TIDE_API (e.g. an unset GitHub Actions
+// repo variable, which expands to "") as "not provided" so it can't blank
+// out the URL — only a real value overrides the defaults below.
+const _envApi = (import.meta.env.VITE_TIDE_API as string | undefined)?.trim();
+const API_BASE = _envApi
+  ? _envApi
+  : import.meta.env.PROD
     ? "https://hacksaw-cranial-chaplain.ngrok-free.dev"
-    : "http://127.0.0.1:8000");
+    : "http://127.0.0.1:8000";
 
 // When the backend is reached through an ngrok free tunnel, ngrok serves an
 // HTML "browser warning" interstitial instead of proxying the request — which
